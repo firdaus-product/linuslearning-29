@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="ms-MY">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Kemahiran Pemulihan: Operasi Tambah (1–100)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { box-sizing: border-box; }
+    .activity-card { min-height: 420px; }
+    .number-card { transition: all .3s ease; cursor: pointer; }
+    .number-card:hover { transform: scale(1.05); }
+    .dragging { opacity: .5; transform: rotate(5deg); }
+
+    /* Drop zone */
+    .drop-zone {
+      border: 2px dashed #cbd5e1;
+      transition: all .3s ease;
+      min-width: 60px;
+      min-height: 60px;
+      display: inline-flex;
+      align-items: center; justify-content: center;
+      vertical-align: middle;
+      background: #fff;
+    }
+    .drop-zone.drag-over { border-color: #3b82f6; background-color: #eff6ff; }
+
+    /* Salah */
+    @keyframes shake {
+      0% { transform: translateX(0); }
+      25% { transform: translateX(-5px); }
+      50% { transform: translateX(5px); }
+      75% { transform: translateX(-5px); }
+      100% { transform: translateX(0); }
+    }
+    .shake { animation: shake 0.5s ease; }
+
+    .drop-zone-filled {
+      border-style: solid;
+      border-color: #4ade80;
+      background-color: #f0fdf4;
+    }
+
+    /* Flip card (Aktiviti 1) */
+    .flip { perspective: 1000px; }
+    .flip-inner { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform .6s; }
+    .flipped .flip-inner { transform: rotateY(180deg); }
+    .flip-front, .flip-back { position:absolute; inset:0; backface-visibility: hidden; }
+    .flip-back { transform: rotateY(180deg); }
+
+    /* Aktiviti 3 hints */
+    .bubble { border:2px dashed #ddd; }
+    .carry-cell { min-width: 48px; min-height: 48px; }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-purple-50 min-h-full">
+
+  <!-- Info bar -->
+  <div class="bg-yellow-100 border-b-4 border-yellow-300 p-4 shadow-sm sticky top-0 z-10">
+    <div class="max-w-6xl mx-auto flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <span class="text-2xl">📚</span>
+        <span id="info-text" class="text-lg font-semibold text-gray-800">
+          Pilih aktiviti untuk mula belajar tambah!
+        </span>
+      </div>
+      <button id="speak-btn"
+              class="bg-yellow-300 hover:bg-yellow-400 text-yellow-800 font-bold py-2 px-4 rounded-full text-xl transition-colors duration-200"
+              onclick="speakInfo()">
+        🔊
+      </button>
+    </div>
+  </div>
+
+  <div class="max-w-6xl mx-auto p-6">
+    <!-- Activity card -->
+    <div class="bg-white rounded-xl shadow-lg p-6 mb-6 activity-card flex items-center justify-center">
+      <div id="activity-content" class="text-center w-full">
+        <div class="py-16">
+          <div class="text-6xl mb-4">➕</div>
+          <h2 class="text-3xl font-bold text-gray-800 mb-4">
+            Operasi Tambah (1–100): Pembelajaran Interaktif
+          </h2>
+          <p class="text-xl text-gray-600 mb-8">
+            Pilih aktiviti di bawah untuk meneroka konsep tambah, nilai tempat dan mengumpul semula.
+          </p>
+          <div class="text-4xl">👇</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Activity picker -->
+    <div class="bg-white rounded-xl shadow-lg p-6">
+      <h3 class="text-2xl font-bold text-gray-800 mb-4 text-center">Pilih Aktiviti</h3>
+      <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
+        <button onclick="loadActivity(1)"
+                class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg text-lg transition-colors duration-200">
+          🃏 Kad Imbas Interaktif
+        </button>
+        <button onclick="loadActivity(2)"
+                class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg text-lg transition-colors duration-200">
+          🧩 Nilai Tempat (Seret & Letak)
+        </button>
+        <button onclick="loadActivity(3)"
+                class="bg-purple-500 hover:bg-purple-600 text-white font-bold py-3 px-4 rounded-lg text-lg transition-colors duration-200">
+          🎯 Tambah & Bawa
+        </button>
+        <button onclick="loadActivity(4)"
+                class="bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-4 rounded-lg text-lg transition-colors duration-200">
+          ✅ Kuiz Respons Segera
+        </button>
+        <button onclick="loadActivity(5)"
+                class="bg-rose-500 hover:bg-rose-600 text-white font-bold py-3 px-4 rounded-lg text-lg transition-colors duration-200">
+          🍎 Visual Epal
+        </button>
+      </div>
+
+      <div class="flex justify-center gap-4">
+        <button onclick="clearActivity()" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-6 rounded-lg text-lg transition-colors duration-200">
+          🧹 Bersih
+        </button>
+        <button onclick="nextActivity()" class="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-6 rounded-lg text-lg transition-colors duration-200">
+          ➡️ Seterusnya
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentActivity = 0;
+    let ttsEnabled = false;
+    let currentInfo = "Pilih aktiviti untuk mula belajar tambah!";
+    let draggedElement = null;
+
+    /* ====== TTS ====== */
+    function speak(text) {
+      if (!ttsEnabled) return;
+      if (!('speechSynthesis' in window)) return;
+      window.speechSynthesis.cancel();
+      setTimeout(() => {
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = 'ms-MY';
+        u.rate = 0.95; u.pitch = 1.05;
+        const voices = window.speechSynthesis.getVoices();
+        const ms = voices.find(v => v.lang === 'ms-MY' || v.lang?.startsWith('ms'));
+        if (ms) u.voice = ms;
+        window.speechSynthesis.speak(u);
+      }, 80);
+    }
+    function setInfo(text) { currentInfo = text; document.getElementById('info-text').textContent = text; }
+    function speakInfo() {
+      if (!ttsEnabled) {
+        ttsEnabled = true;
+        const btn = document.getElementById('speak-btn');
+        btn.classList.add('bg-green-300', 'hover:bg-green-400');
+        btn.classList.remove('bg-yellow-300', 'hover:bg-yellow-400');
+      }
+      speak(currentInfo);
+    }
+
+    /* ====== DnD helpers ====== */
+    function dragStart(e) { draggedElement = e.target; e.target.classList.add('dragging'); }
+    function dragEnd(e) { e.target.classList.remove('dragging'); document.querySelectorAll('.drop-zone').forEach(z=>z.classList.remove('drag-over')); }
+    function allowDrop(e) { e.preventDefault(); if (e.currentTarget.classList.contains('drop-zone')) e.currentTarget.classList.add('drag-over'); }
+    function dragLeave(e) { if (e.currentTarget.classList.contains('drop-zone')) e.currentTarget.classList.remove('drag-over'); }
+
+    /* ====== Router ====== */
+    function loadActivity(n) {
+      currentActivity = n;
+      const content = document.getElementById('activity-content');
+      if (n === 1) return loadFlashCards(content);
+      if (n === 2) return loadPlaceValue(content);
+      if (n === 3) return loadCarryGame(content);
+      if (n === 4) return loadQuickQuiz(content);
+      if (n === 5) return loadAppleVisual(content);
+    }
+
+    /* ========= AKTIVITI 1: KAD IMBAS INTERAKTIF ========= */
+    function loadFlashCards(content){
+      setInfo("Klik kad untuk terbalik & lihat jawapan dengan langkah. Tekan 🎲 untuk soalan baharu.");
+      const pairs = [
+        [24,8], [35,6], [48,7], [27,13], [18,24], [59,12]
+      ];
+      const [a,b] = pairs[Math.floor(Math.random()*pairs.length)];
+      const ans = a+b;
+      const ones = (a%10)+(b%10);
+      const carry = ones>=10 ? 1:0;
+      const tens = Math.floor(a/10) + Math.floor(b/10) + carry;
+
+      content.innerHTML = `
+        <h3 class="text-2xl font-bold text-blue-600 mb-4">🃏 Kad Imbas Interaktif</h3>
+        <p class="text-gray-600 mb-4">Klik kad untuk melihat jawapan & penerangan. </p>
+        <div class="flex items-center justify-center">
+          <div id="card" class="flip w-full max-w-md h-56">
+            <div class="flip-inner rounded-2xl shadow-xl border-2 border-blue-200">
+              <div class="flip-front bg-blue-50 rounded-2xl h-full flex flex-col items-center justify-center gap-2">
+                <div class="text-5xl font-extrabold text-blue-800">${a} + ${b}</div>
+                <div class="text-blue-600 font-semibold">Klik untuk terbalik</div>
+              </div>
+              <div class="flip-back bg-white rounded-2xl h-full p-6 flex flex-col items-center justify-center text-center">
+                <div class="text-4xl font-black text-emerald-600">${ans}</div>
+                <div class="mt-2 text-sm text-gray-700">
+                  <div>Sa: ${(a%10)} + ${(b%10)} = ${ones} ${carry?`→ bawa ${carry} ke puluh`:``}</div>
+                  <div>Puluh: ${Math.floor(a/10)} + ${Math.floor(b/10)} ${carry?`+ ${carry}`:``} = ${tens}</div>
+                </div>
+                <button class="mt-3 bg-purple-100 text-purple-700 px-3 py-1 rounded-full font-semibold" onclick="speak('${a} tambah ${b} sama dengan ${ans}. ${carry?`Satu dibawa ke puluh.`:''}')">🔊 Dengar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-6 flex gap-3 justify-center">
+          <button class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-xl" onclick="loadFlashCards(document.getElementById('activity-content'))">🎲 Soalan Baharu</button>
+          <button class="bg-gray-600 hover:bg-gray-700 text-white px-5 py-3 rounded-xl" onclick="document.getElementById('card').classList.toggle('flipped')">🔁 Terbalik / Balik</button>
+        </div>
+      `;
+      document.getElementById('card').addEventListener('click',()=>document.getElementById('card').classList.toggle('flipped'));
+    }
+
+    /* ========= AKTIVITI 2: NILAI TEMPAT (SERET & LETAK) ========= */
+    function loadPlaceValue(content){
+      setInfo("Seret digit ke lajur nilai tempat yang betul (puluh & sa). Kemudian tekan 'Semak'.");
+      // bina nombor rawak 2 digit
+      const n = 10 + Math.floor(Math.random()*90);
+      const p = Math.floor(n/10), s = n%10;
+      const pool = [p, s, Math.floor(Math.random()*9)+1, Math.floor(Math.random()*9)+1];
+
+      content.innerHTML = `
+        <h3 class="text-2xl font-bold text-green-600 mb-4">🧩 Nilai Tempat</h3>
+        <p class="text-gray-600 mb-4">Nombor sasaran: <span class="font-bold text-gray-900 text-xl">${n}</span></p>
+
+        <div class="grid grid-cols-3 gap-4 max-w-2xl mx-auto">
+          <div></div>
+          <div class="text-center font-semibold text-gray-600">Puluh</div>
+          <div class="text-center font-semibold text-gray-600">Sa</div>
+
+          <div class="text-right font-semibold text-gray-600 flex items-center justify-end pr-2">Letak di sini:</div>
+          <div id="drop-p" class="drop-zone rounded-lg py-4 carry-cell" ondrop="dropPlace(event)" ondragover="allowDrop(event)" ondragleave="dragLeave(event)" data-correct="${p}">__</div>
+          <div id="drop-s" class="drop-zone rounded-lg py-4 carry-cell" ondrop="dropPlace(event)" ondragover="allowDrop(event)" ondragleave="dragLeave(event)" data-correct="${s}">__</div>
+        </div>
+
+        <div class="mt-8">
+          <div class="text-center font-semibold text-gray-600 mb-2">Kad digit:</div>
+          <div class="flex flex-wrap justify-center gap-3" id="digit-bank">
+            ${pool.sort(()=>Math.random()-0.5).map(d=>`
+              <div class="number-card bg-green-50 border-2 border-green-300 rounded-xl px-6 py-3 text-2xl font-bold text-green-800 cursor-move"
+                   draggable="true" ondragstart="dragStart(event)" ondragend="dragEnd(event)" data-number="${d}">
+                ${d}
+              </div>`).join('')}
+          </div>
+        </div>
+
+        <div class="mt-6 flex gap-3 justify-center">
+          <button id="pv-check" class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-xl">✅ Semak</button>
+          <button class="bg-gray-600 hover:bg-gray-700 text-white px-5 py-3 rounded-xl" onclick="loadPlaceValue(document.getElementById('activity-content'))">🔄 Soalan Baharu</button>
+        </div>
+      `;
+
+      document.getElementById('pv-check').addEventListener('click', ()=>{
+        const okP = document.getElementById('drop-p').dataset.filled === 'true';
+        const okS = document.getElementById('drop-s').dataset.filled === 'true';
+        if(okP && okS){
+          setInfo("Bagus! Kamu faham nilai tempat puluh dan sa.");
+          speak("Bagus! Kamu faham nilai tempat puluh dan sa.");
+        }else{
+          setInfo("Masih belum lengkap. Pastikan kedua-dua lajur terisi digit yang betul.");
+          speak("Masih belum lengkap. Pastikan kedua-dua lajur terisi digit yang betul.");
+        }
+      });
+    }
+    function dropPlace(e){
+      e.preventDefault(); e.currentTarget.classList.remove('drag-over'); if (!draggedElement) return;
+      const draggedNumber = parseInt(draggedElement.dataset.number);
+      const correctNumber = parseInt(e.currentTarget.dataset.correct);
+      if (draggedNumber === correctNumber) {
+        e.currentTarget.textContent = draggedNumber;
+        e.currentTarget.classList.add('drop-zone-filled');
+        e.currentTarget.classList.remove('drop-zone');
+        e.currentTarget.dataset.filled = 'true';
+        draggedElement.remove(); draggedElement = null;
+        setInfo("Betul! Teruskan melengkapkan lajur lain.");
+        speak("Betul! Teruskan melengkapkan lajur lain.");
+      } else {
+        e.currentTarget.classList.add('shake'); setTimeout(()=>e.currentTarget.classList.remove('shake'),500);
+        setInfo("Bukan di situ. Cuba letak semula.");
+        speak("Bukan di situ. Cuba letak semula.");
+      }
+    }
+
+    /* ========= AKTIVITI 3: PERMAINAN TAMBAH & BAWA ========= */
+    function randWithCarry(){
+      // Pastikan ada kemungkinan bawa
+      const a = 10 + Math.floor(Math.random()*90);
+      const b = 10 + Math.floor(Math.random()*90);
+      const ones = (a%10)+(b%10);
+      return (ones>=10) ? [a,b] : randWithCarry();
+    }
+    function loadCarryGame(content){
+      const [A,B] = randWithCarry();
+      const a1 = A%10, a2 = Math.floor(A/10);
+      const b1 = B%10, b2 = Math.floor(B/10);
+      const ones = a1+b1; const carry = ones>=10?1:0; const onesOut = ones%10;
+      const tensOut = a2 + b2 + carry;
+      setInfo("Ikut langkah: Tambah sa → tentukan bawa → tambah puluh.");
+      content.innerHTML = `
+        <h3 class="text-2xl font-bold text-purple-600 mb-4">🎯 Tambah & Bawa</h3>
+        <p class="text-gray-600 mb-4">Ikuti langkah satu per satu. Klik pilihan jawapan.</p>
+
+        <div class="max-w-md mx-auto bg-purple-50 rounded-2xl p-4 border-2 border-purple-200">
+          <div class="grid grid-cols-3 gap-2 text-center text-2xl font-bold">
+            <div class="text-gray-500">ratus</div>
+            <div>puluh</div>
+            <div>sa</div>
+          </div>
+          <div class="grid grid-cols-3 gap-2 text-center items-center mt-1">
+            <div></div>
+            <div id="carry-slot" class="bubble rounded-lg py-2 text-gray-400 text-xl carry-cell">bawa</div>
+            <div></div>
+          </div>
+          <div class="grid grid-cols-3 gap-2 text-center items-center mt-1">
+            <div></div>
+            <div class="text-4xl">${a2}</div>
+            <div class="text-4xl">${a1}</div>
+          </div>
+          <div class="grid grid-cols-3 gap-2 text-center items-center">
+            <div class="text-xl">+</div>
+            <div class="text-4xl">${b2}</div>
+            <div class="text-4xl">${b1}</div>
+          </div>
+          <div class="grid grid-cols-3 gap-2 text-center items-center mt-2">
+            <div></div>
+            <div id="tens-out" class="bubble rounded-lg py-2 text-3xl carry-cell">__</div>
+            <div id="ones-out" class="bubble rounded-lg py-2 text-3xl carry-cell">__</div>
+          </div>
+        </div>
+
+        <div class="mt-6 space-y-4 max-w-xl mx-auto">
+          <div class="bg-white rounded-xl p-4 shadow border">
+            <div class="font-semibold mb-2">Langkah 1 — Sa: ${a1} + ${b1} = ?</div>
+            <div class="flex flex-wrap gap-2" id="step1">
+              ${[ (onesOut), (onesOut+1)%10, (onesOut+2)%10 ].sort(()=>Math.random()-0.5).map(v=>`
+                <button class="px-4 py-2 rounded-lg border-2 number-card" data-v="${v}">${v}</button>
+              `).join('')}
+            </div>
+            <div class="text-sm text-gray-500 mt-2">Pilih digit sa (tulis satu digit saja di bawah).</div>
+          </div>
+
+          <div class="bg-white rounded-xl p-4 shadow border">
+            <div class="font-semibold mb-2">Langkah 2 — Adakah perlu bawa 1 ke puluh?</div>
+            <div class="flex gap-2" id="step2">
+              ${[0,1].sort(()=>Math.random()-0.5).map(v=>`
+                <button class="px-4 py-2 rounded-lg border-2 number-card" data-v="${v}">${v===1?'Ya, bawa 1':'Tidak'}</button>
+              `).join('')}
+            </div>
+          </div>
+
+          <div class="bg-white rounded-xl p-4 shadow border">
+            <div class="font-semibold mb-2">Langkah 3 — Puluh: ${a2} + ${b2} ${carry?'+ 1':''} = ?</div>
+            <div class="flex flex-wrap gap-2" id="step3">
+              ${[tensOut, tensOut+1, Math.max(0,tensOut-1)].sort(()=>Math.random()-0.5).map(v=>`
+                <button class="px-4 py-2 rounded-lg border-2 number-card" data-v="${v}">${v}</button>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-6 flex gap-3 justify-center">
+          <button class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-xl" id="explain-btn">🔊 Terangkan</button>
+          <button class="bg-gray-600 hover:bg-gray-700 text-white px-5 py-3 rounded-xl" onclick="loadCarryGame(document.getElementById('activity-content'))">🔄 Soalan Baharu</button>
+        </div>
+      `;
+
+      // handlers
+      document.querySelectorAll('#step1 button').forEach(b=>{
+        b.addEventListener('click', ()=>{
+          const v = parseInt(b.dataset.v);
+          const slot = document.getElementById('ones-out');
+          if(v===onesOut){ slot.textContent = v; setInfo("Bagus! Digit sa betul."); speak("Bagus! Digit sa betul."); }
+          else { slot.classList.add('shake'); setTimeout(()=>slot.classList.remove('shake'),500); setInfo("Cuba lagi untuk digit sa."); speak("Cuba lagi untuk digit sa."); }
+        });
+      });
+      document.querySelectorAll('#step2 button').forEach(b=>{
+        b.addEventListener('click', ()=>{
+          const v = parseInt(b.dataset.v);
+          const slot = document.getElementById('carry-slot');
+          if(v===carry){ slot.textContent = carry? '1' : '0'; setInfo("Betul tentang bawa."); speak("Betul tentang bawa."); }
+          else { slot.classList.add('shake'); setTimeout(()=>slot.classList.remove('shake'),500); setInfo("Semak semula jumlah sa."); speak("Semak semula jumlah sa."); }
+        });
+      });
+      document.querySelectorAll('#step3 button').forEach(b=>{
+        b.addEventListener('click', ()=>{
+          const v = parseInt(b.dataset.v);
+          const slot = document.getElementById('tens-out');
+          if(v===tensOut){ slot.textContent = v; setInfo("Hebat! Jawapan lengkap."); speak(`Jawapan ${A + B}.`); }
+          else { slot.classList.add('shake'); setTimeout(()=>slot.classList.remove('shake'),500); setInfo("Belum tepat. Cuba lagi."); speak("Belum tepat. Cuba lagi."); }
+        });
+      });
+
+      document.getElementById('explain-btn').addEventListener('click', ()=>{
+        speak(`${A} tambah ${B}. Tambah satuan: ${a1} tambah ${b1} sama dengan ${ones}. ${carry? 'Bawa satu ke puluh. ': ''}Tambah puluh: ${a2} tambah ${b2} ${carry? 'tambah satu ': ''}sama dengan ${tensOut}. Jumlah ialah ${A+B}.`);
+      });
+    }
+
+    /* ========= AKTIVITI 4: KUIZ RESPONS SEGERA ========= */
+    function randAdd(){
+      // campur 2-digit + 1/2 digit; 50% ada carry
+      const two = 10 + Math.floor(Math.random()*90);
+      if(Math.random()<0.5){ // + satu digit
+        const one = Math.floor(Math.random()*9)+1;
+        return [two, one, two+one];
+      } else { // + dua digit
+        let two2 = 10 + Math.floor(Math.random()*90);
+        return [two, two2, two+two2];
+      }
+    }
+    let quizScore = 0, quizTotal = 0;
+    function loadQuickQuiz(content){
+      setInfo("Pilih jawapan. Markah dikira serta-merta. Tekan Soalan Baharu untuk seterusnya.");
+      const [a,b,ans] = randAdd();
+      const choices = new Set([ans]);
+      while(choices.size<3){
+        const delta = Math.floor(Math.random()*4)+1;
+        choices.add(ans + (Math.random()<0.5?-delta:delta));
+      }
+      const opts = Array.from(choices).sort(()=>Math.random()-0.5);
+
+      content.innerHTML = `
+        <h3 class="text-2xl font-bold text-orange-600 mb-2">✅ Kuiz Respons Segera</h3>
+        <div class="text-gray-700 mb-4">Jawab dan lihat maklum balas segera.</div>
+
+        <div class="text-center text-5xl font-black text-gray-900 mb-4">${a} + ${b} = ?</div>
+
+        <div class="flex flex-wrap justify-center gap-3 mb-6" id="quiz-choices">
+          ${opts.map(x=>`<button class="number-card bg-orange-50 border-2 border-orange-300 rounded-xl px-6 py-4 text-2xl font-bold" data-v="${x}">${x}</button>`).join('')}
+        </div>
+
+        <div class="text-center text-lg font-semibold">
+          Markah: <span id="score">${quizScore}</span> / <span id="total">${quizTotal}</span>
+        </div>
+
+        <div class="mt-6 flex gap-3 justify-center">
+          <button class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-xl" onclick="loadQuickQuiz(document.getElementById('activity-content'))">🔄 Soalan Baharu</button>
+          <button class="bg-gray-600 hover:bg-gray-700 text-white px-5 py-3 rounded-xl" onclick="quizScore=0;quizTotal=0;loadQuickQuiz(document.getElementById('activity-content'))">🧹 Reset Markah</button>
+        </div>
+      `;
+
+      document.querySelectorAll('#quiz-choices button').forEach(b=>{
+        b.addEventListener('click', ()=>{
+          const v = parseInt(b.dataset.v);
+          quizTotal++;
+          if(v===ans){ quizScore++; setInfo("Betul! Syabas."); speak("Betul! Syabas."); b.classList.add('bg-emerald-200','border-emerald-400'); }
+          else { setInfo(`Kurang tepat. Jawapan: ${ans}.`); speak(`Kurang tepat. Jawapan ${ans}.`); b.classList.add('bg-rose-200','border-rose-400'); }
+          document.getElementById('score').textContent = quizScore;
+          document.getElementById('total').textContent = quizTotal;
+          document.querySelectorAll('#quiz-choices button').forEach(x=>x.disabled=true);
+        });
+      });
+    }
+
+    /* ========= AKTIVITI 5: VISUAL EPAL (MANIPULATIF) ========= */
+    function loadAppleVisual(content){
+      setInfo("Lihat dua kumpulan epal. Tekan 'Gabung' untuk kira jumlah. Boleh tukar bilangan.");
+      let A = Math.floor(Math.random()*9)+1;
+      let B = Math.floor(Math.random()*9)+1;
+
+      function apples(n){ return Array.from({length:n}).map(()=>`<span class="text-3xl">🍎</span>`).join(''); }
+
+      content.innerHTML = `
+        <h3 class="text-2xl font-bold text-rose-600 mb-2">🍎 Visual Epal</h3>
+        <p class="text-gray-600 mb-4">Manipulatif digital untuk faham maksud tambah.</p>
+
+        <div class="grid md:grid-cols-3 gap-4 items-center">
+          <div class="bg-white rounded-xl p-4 shadow border text-center">
+            <div class="font-semibold text-gray-600">Kumpulan A</div>
+            <div class="my-2 text-2xl font-bold"><span id="A-val">${A}</span> epal</div>
+            <div id="A-apples" class="flex flex-wrap gap-1 justify-center">${apples(A)}</div>
+            <input id="A-input" type="range" min="1" max="9" value="${A}" class="w-full mt-3">
+          </div>
+
+          <div class="text-center text-4xl font-black">+</div>
+
+          <div class="bg-white rounded-xl p-4 shadow border text-center">
+            <div class="font-semibold text-gray-600">Kumpulan B</div>
+            <div class="my-2 text-2xl font-bold"><span id="B-val">${B}</span> epal</div>
+            <div id="B-apples" class="flex flex-wrap gap-1 justify-center">${apples(B)}</div>
+            <input id="B-input" type="range" min="1" max="9" value="${B}" class="w-full mt-3">
+          </div>
+        </div>
+
+        <div class="text-center my-6">
+          <button id="merge-btn" class="bg-rose-600 hover:bg-rose-700 text-white px-6 py-3 rounded-xl">🔗 Gabung</button>
+        </div>
+
+        <div id="sum-card" class="hidden max-w-md mx-auto bg-emerald-50 border-2 border-emerald-300 rounded-xl p-4 text-center">
+          <div class="text-sm text-gray-600">Jumlah</div>
+          <div id="sum-text" class="text-4xl font-black text-emerald-700"></div>
+          <div id="sum-apples" class="flex flex-wrap gap-1 justify-center mt-2"></div>
+          <button class="mt-3 bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full font-semibold" id="speak-sum">🔊 Dengar</button>
+        </div>
+      `;
+
+      function updateA(v){
+        document.getElementById('A-val').textContent = v;
+        document.getElementById('A-apples').innerHTML = apples(v);
+      }
+      function updateB(v){
+        document.getElementById('B-val').textContent = v;
+        document.getElementById('B-apples').innerHTML = apples(v);
+      }
+
+      document.getElementById('A-input').addEventListener('input', e=>updateA(parseInt(e.target.value)));
+      document.getElementById('B-input').addEventListener('input', e=>updateB(parseInt(e.target.value)));
+
+      document.getElementById('merge-btn').addEventListener('click', ()=>{
+        const a = parseInt(document.getElementById('A-val').textContent);
+        const b = parseInt(document.getElementById('B-val').textContent);
+        const sum = a+b;
+        document.getElementById('sum-card').classList.remove('hidden');
+        document.getElementById('sum-text').textContent = `${a} + ${b} = ${sum}`;
+        document.getElementById('sum-apples').innerHTML = Array.from({length:sum}).map(()=>`<span class="text-2xl">🍎</span>`).join('');
+        setInfo(`Jumlah ialah ${sum}.`);
+        speak(`Jumlah ialah ${sum}.`);
+        document.getElementById('speak-sum').onclick = ()=>speak(`${a} tambah ${b} sama dengan ${sum}`);
+      });
+    }
+
+    /* ====== Kawalan Umum ====== */
+    function clearActivity() {
+      currentActivity = 0;
+      document.getElementById('activity-content').innerHTML = `
+        <div class="text-center py-16">
+          <div class="text-6xl mb-4">➕</div>
+          <h2 class="text-3xl font-bold text-gray-800 mb-4">Operasi Tambah (1–100): Pembelajaran Interaktif</h2>
+          <p class="text-xl text-gray-600 mb-8">Pilih aktiviti di bawah untuk meneroka konsep tambah, nilai tempat dan mengumpul semula.</p>
+          <div class="text-4xl">👇</div>
+        </div>
+      `;
+      setInfo("Pilih aktiviti untuk mula belajar tambah!");
+    }
+    function nextActivity() {
+      if (currentActivity === 0) return loadActivity(1);
+      if (currentActivity < 5) return loadActivity(currentActivity + 1);
+      return loadActivity(1);
+    }
+
+    // Kekalkan TTS resume pada sesetengah pelayar
+    if ('speechSynthesis' in window) {
+      setInterval(() => { if (window.speechSynthesis.paused) window.speechSynthesis.resume(); }, 1200);
+    }
+  </script>
+</body>
+</html>
